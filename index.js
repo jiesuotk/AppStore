@@ -25,7 +25,7 @@ app.get('/search', async (req, res) => {
         term,
         entity: 'software',
         country: region,
-        limit: 10
+        limit: 5
       }
     });
     res.json(response.data);
