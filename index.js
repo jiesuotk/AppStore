@@ -12,8 +12,10 @@ app.get('/', (req, res) => {
 
 // 搜索接口
 app.get('/search', async (req, res) => {
+  // 从请求中获取 app 名称、地区和搜索数量
   const term = req.query.term;
   const region = req.query.region || 'cn';
+  const limit = req.query.limit || 10; // 从查询参数中获取数量，默认为10
 
   if (!term) {
     return res.status(400).json({ error: '请输入应用名称' });
@@ -25,7 +27,7 @@ app.get('/search', async (req, res) => {
         term,
         entity: 'software',
         country: region,
-        limit: 5
+        limit // <--- 将动态获取的 limit 变量传递给 API
       }
     });
     res.json(response.data);
@@ -36,4 +38,3 @@ app.get('/search', async (req, res) => {
 
 // 关键：不使用 app.listen
 export default app;
-
