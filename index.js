@@ -1,48 +1,61 @@
-// api/app.js
 import express from 'express';
 import axios from 'axios';
 import cors from 'cors';
-import rateLimit from 'express-rate-limit';
+import rateLimit from 'express-rate-limit'; // 导入频率限制库
 
 const app = express();
-
-// 允许所有来源访问，或者改成指定域名
 app.use(cors());
 
-// 限制频率：每个 IP 每分钟最多调用 10 次
-const limiter = rateLimit({
-  windowMs: 300 * 1000, // 1 分钟
-  max: 10,
-  message: { error: '请求过于频繁，请稍后再试' }
-});
-app.use('/search', limiter);
+// 从 Vercel 环境变量中获取允许的域名
+// 请在 Vercel 中设置一个名为 `ALLOWED_ORIGIN` 的环境变量
+const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN;
 
-// API Key 中间件（只在服务器端验证）
-const SERVER_API_KEY = process.env.API_KEY; // 在 Vercel 设置环境变量
-app.use((req, res, next) => {
-  const key = req.headers['x-api-key']; // 客户端不需要知道真实 Key，可以用内部约定 token
-  if (!key || key !== SERVER_API_KEY) {
-    return res.status(401).json({ error: '无效的 API Key' });
-  }
-  next();
-});
-
-// 根路径测试
+// 测试根路径
 app.get('/', (req, res) => {
   res.send('App Store Search API is running!');
 });
 
-// 搜索接口
-app.get('/search', async (req, res) => {
+// 配置频率限制中间件
+// 每个 IP 在 5 分钟内最多调用 10 次
+const limiter = rateLimit({
+  windowMs: 5 * 60 * 1000, // 5 分钟
+  max: 10, // 最多 10 次调用
+  message: { error: '请求过于频繁，请稍后再试' },
+  // 关键: 这里使用 req.ip 来限制每个 IP 地址的请求
+  keyGenerator: (req, res) => req.ip,
+});
+
+// 在安全搜索接口上应用频率限制
+app.use('/safe-search', limiter);
+
+// 安全搜索接口
+// 前端现在将调用这个接口
+app.get('/safe-search', async (req, res) => {
+  // 从请求头中获取 Origin
+  const origin = req.headers.origin;
+
+  // 如果请求的 Origin 不在允许的域名列表中，则拒绝访问
+  if (!origin || origin !== ALLOWED_ORIGIN) {
+    return res.status(403).json({ error: '未经授权的访问: 域名不匹配' });
+  }
+  
+  // 从请求中获取 app 名称、地区和搜索数量
   const term = req.query.term;
   const region = req.query.region || 'cn';
   const limit = req.query.limit || 10;
 
-  if (!term) return res.status(400).json({ error: '请输入应用名称' });
+  if (!term) {
+    return res.status(400).json({ error: '请输入应用名称' });
+  }
 
   try {
     const response = await axios.get('https://itunes.apple.com/search', {
-      params: { term, entity: 'software', country: region, limit }
+      params: {
+        term,
+        entity: 'software',
+        country: region,
+        limit
+      }
     });
     res.json(response.data);
   } catch (err) {
@@ -50,4 +63,5 @@ app.get('/search', async (req, res) => {
   }
 });
 
+// 关键：不使用 app.listen
 export default app;
