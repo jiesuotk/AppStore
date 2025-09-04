@@ -7,7 +7,6 @@ const app = express();
 app.use(cors());
 
 // 从 Vercel 环境变量中获取允许的域名
-// 请在 Vercel 中设置一个名为 `ALLOWED_ORIGIN` 的环境变量
 const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN;
 
 // 测试根路径
@@ -34,11 +33,12 @@ app.get('/safe-search', async (req, res) => {
   // 从请求头中获取 Origin
   const origin = req.headers.origin;
 
-  // 如果请求的 Origin 不在允许的域名列表中，则拒绝访问
+  // 如果请求的 Origin 不在允许的域名列表中，则返回 JSON 格式的错误信息
+  // 这将帮助前端正确处理，避免 "Unexpected token '<'" 错误
   if (!origin || origin !== ALLOWED_ORIGIN) {
     return res.status(403).json({ error: '未经授权的访问: 域名不匹配' });
   }
-  
+
   // 从请求中获取 app 名称、地区和搜索数量
   const term = req.query.term;
   const region = req.query.region || 'cn';
