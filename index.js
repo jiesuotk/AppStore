@@ -1,8 +1,7 @@
-// 使用 require 代替 import
-const express = require('express');
-const axios = require('axios');
-const cors = require('cors');
-const rateLimit = require('express-rate-limit'); // 导入频率限制库
+import express from 'express';
+import axios from 'axios';
+import cors from 'cors';
+import rateLimit from 'express-rate-limit'; // 导入频率限制库
 
 const app = express();
 app.use(cors());
@@ -18,10 +17,10 @@ app.get('/', (req, res) => {
 });
 
 // 配置频率限制中间件
-// 每个 IP 在 5 分钟内最多调用 30 次
+// 每个 IP 在 5 分钟内最多调用 10 次
 const limiter = rateLimit({
   windowMs: 5 * 60 * 1000, // 5 分钟
-  max: 30, // 最多 30 次调用
+  max: 50, // 最多 10 次调用
   message: { error: '请求过于频繁，请稍后再试' },
   // 关键: 这里使用 req.ip 来限制每个 IP 地址的请求
   keyGenerator: (req, res) => req.ip,
@@ -45,7 +44,7 @@ app.get('/safe-search', async (req, res) => {
   // 从请求中获取 app 名称、地区和搜索数量
   const term = req.query.term;
   const region = req.query.region || 'cn';
-  const limit = req.query.limit || 12;
+  const limit = req.query.limit || 10;
 
   if (!term) {
     return res.status(400).json({ error: '请输入应用名称' });
@@ -67,5 +66,4 @@ app.get('/safe-search', async (req, res) => {
 });
 
 // 关键：不使用 app.listen
-// 使用 module.exports 代替 export default
-module.exports = app;
+export default app;
