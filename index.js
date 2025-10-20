@@ -1,3 +1,4 @@
+// 修复 1: 确保所有 import 都已改为 require (CJS 语法)
 const express = require('express');
 const axios = require('axios');
 const cors = require('cors');
@@ -5,8 +6,8 @@ const rateLimit = require('express-rate-limit');
 
 const app = express();
 
-// 告诉 Express 信任 Vercel 代理
-app.set('trust proxy', 1); // <--- 在这里添加这一行
+// 修复 2: 添加 'trust proxy' 来修复 req.ip 问题 (运行时修复)
+app.set('trust proxy', 1); 
 
 app.use(cors());
 
@@ -23,10 +24,8 @@ app.get('/', (req, res) => {
 // 配置频率限制中间件
 const limiter = rateLimit({
   windowMs: 5 * 60 * 1000, 
-  max: 50, 
+  max: 10, 
   message: { error: '请求过于频繁，请稍后再试' },
-  // 关键: 现在 req.ip 会被正确填充，所以这里不再需要 keyGenerator
-  // keyGenerator: (req, res) => req.ip, // <--- (可选) 你甚至可以删除这一行，因为默认就是使用 req.ip
 });
 
 // 在安全搜索接口上应用频率限制
@@ -63,4 +62,5 @@ app.get('/safe-search', async (req, res) => {
   }
 });
 
+// 修复 1: 确保使用 module.exports (CJS 语法)
 module.exports = app;
