@@ -23,7 +23,7 @@ app.get('/', (req, res) => {
 // 配置频率限制中间件
 const limiter = rateLimit({
   windowMs: 5 * 60 * 1000, 
-  max: 10, 
+  max: 50, 
   message: { error: '请求过于频繁，请稍后再试' },
   // 关键: 现在 req.ip 会被正确填充，所以这里不再需要 keyGenerator
   // keyGenerator: (req, res) => req.ip, // <--- (可选) 你甚至可以删除这一行，因为默认就是使用 req.ip
