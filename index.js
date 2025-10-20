@@ -1,7 +1,8 @@
-import express from 'express';
-import axios from 'axios';
-import cors from 'cors';
-import rateLimit from 'express-rate-limit'; // 导入频率限制库
+// 使用 require 代替 import
+const express = require('express');
+const axios = require('axios');
+const cors = require('cors');
+const rateLimit = require('express-rate-limit'); // 导入频率限制库
 
 const app = express();
 app.use(cors());
@@ -65,5 +66,4 @@ app.get('/safe-search', async (req, res) => {
   }
 });
 
-// 关键：不使用 app.listen
-export default app;
+module.exports = app;
