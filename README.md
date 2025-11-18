@@ -1,2 +1,0 @@
-# chatwoot-bot
-kefu
