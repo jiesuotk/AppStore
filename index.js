@@ -1,69 +1,105 @@
-import express from 'express';
-import axios from 'axios';
-import cors from 'cors';
-import rateLimit from 'express-rate-limit'; // 导入频率限制库
+// api/search.js
 
-const app = express();
-app.use(cors());
+export default async function handler(req, res) {
+    // 1. 设置允许访问的域名白名单 (CORS)
+    const ALLOWED_ORIGINS = [
+        'https://icon.guankan.tk', // 您的网站
+        'http://localhost:8080'      // 本地调试用
+    ];
 
-// 从 Vercel 环境变量中获取允许的域名
-const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGIN
-  ? process.env.ALLOWED_ORIGIN.split(',').map(o => o.trim())
-  : [];
+    const origin = req.headers.origin;
+    
+    // 检查 Origin 是否在白名单中
+    if (ALLOWED_ORIGINS.includes(origin)) {
+        res.setHeader('Access-Control-Allow-Origin', origin);
+    } else {
+        // 如果是调试阶段，为了方便，您可以暂时设为 '*' (允许所有)，但正式上线建议用白名单
+        // res.setHeader('Access-Control-Allow-Origin', '*'); 
+        // 如果严格模式，不在白名单则不返回 CORS 头，浏览器会拦截
+    }
 
-// 测试根路径
-app.get('/', (req, res) => {
-  res.send('App Store Search API is running!');
-});
+    res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
-// 配置频率限制中间件
-// 每个 IP 在 5 分钟内最多调用 10 次
-const limiter = rateLimit({
-  windowMs: 5 * 60 * 1000, // 5 分钟
-  max: 10, // 最多 10 次调用
-  message: { error: '请求过于频繁，请稍后再试' },
-  // 关键: 这里使用 req.ip 来限制每个 IP 地址的请求
-  keyGenerator: (req, res) => req.ip,
-});
+    // 2. 处理预检请求 (OPTIONS)
+    if (req.method === 'OPTIONS') {
+        return res.status(200).end();
+    }
 
-// 在安全搜索接口上应用频率限制
-app.use('/safe-search', limiter);
+    // 3. 获取 URL 参数
+    // Vercel 会自动把 URL 参数解析到 req.query 中
+    const { term, region = 'cn', limit = 18 } = req.query;
 
-// 安全搜索接口
-// 前端现在将调用这个接口
-app.get('/safe-search', async (req, res) => {
-  // 从请求头中获取 Origin
-  const origin = req.headers.origin;
+    if (!term) {
+        return res.status(400).json({ error: '请输入搜索关键词' });
+    }
 
-  // 如果请求的 Origin 不在允许的域名列表中，则返回 JSON 格式的错误信息
-  // 这将帮助前端正确处理，避免 "Unexpected token '<'" 错误
-  if (!origin || !ALLOWED_ORIGINS.includes(origin)) {
-    return res.status(403).json({ error: '未经授权的访问: 域名不匹配' });
-  }
+    // 4. 构造 Apple API 地址
+    const appleApiUrl = new URL('https://itunes.apple.com/search');
+    appleApiUrl.searchParams.set('term', term);
+    appleApiUrl.searchParams.set('entity', 'software');
+    appleApiUrl.searchParams.set('country', region);
+    appleApiUrl.searchParams.set('limit', limit);
 
-  // 从请求中获取 app 名称、地区和搜索数量
-  const term = req.query.term;
-  const region = req.query.region || 'cn';
-  const limit = req.query.limit || 10;
+    try {
+        // 5. 发起请求 (带重试机制和伪装)
+        const maxRetries = 2; // 最大重试次数
+        let response;
+        let fetchError;
 
-  if (!term) {
-    return res.status(400).json({ error: '请输入应用名称' });
-  }
+        for (let i = 0; i <= maxRetries; i++) {
+            try {
+                response = await fetch(appleApiUrl.toString(), {
+                    headers: {
+                        // 关键：伪装成 macOS Safari，防止 Apple 返回 403
+                        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.6 Safari/605.1.15',
+                        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                        'Accept-Language': 'en-US,en;q=0.9'
+                    }
+                });
 
-  try {
-    const response = await axios.get('https://itunes.apple.com/search', {
-      params: {
-        term,
-        entity: 'software',
-        country: region,
-        limit
-      }
-    });
-    res.json(response.data);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
+                if (response.ok) break; // 成功则跳出循环
+            } catch (err) {
+                fetchError = err;
+            }
+            // 如果失败，等待 500ms 再重试
+            if (i < maxRetries) await new Promise(r => setTimeout(r, 500));
+        }
 
-// 关键：不使用 app.listen
-export default app;
+        if (!response || !response.ok) {
+             // 即使重试了也失败
+            const status = response ? response.status : 500;
+            return res.status(status).json({ error: 'Apple API 请求失败，请稍后重试' });
+        }
+
+        const data = await response.json();
+
+        // 6. 数据瘦身处理 (为了兼容您的前端)
+        const results = (data.results || []).map(app => {
+            // 图标逻辑
+            const artwork = app.artworkUrl512 || app.artworkUrl100 || app.artworkUrl60 || '';
+            
+            return {
+                trackId: app.trackId,
+                trackName: app.trackName,
+                artworkUrl512: artwork,
+                bundleId: app.bundleId,
+                version: app.version,
+                fileSizeBytes: app.fileSizeBytes,
+                currentVersionReleaseDate: app.currentVersionReleaseDate,
+                formattedPrice: app.formattedPrice,
+                trackViewUrl: app.trackViewUrl,
+                price: app.price
+            };
+        });
+
+        // 7. 返回最终 JSON
+        return res.status(200).json({
+            resultCount: data.resultCount,
+            results: results
+        });
+
+    } catch (error) {
+        return res.status(500).json({ error: error.message });
+    }
+}
