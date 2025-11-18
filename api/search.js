@@ -1,19 +1,10 @@
 // api/search.js
 
 export default async function handler(req, res) {
-    // 1. 从环境变量获取配置
-    const API_KEY = process.env.API_KEY; // 获取设置的密码
-    const ALLOWED_ORIGINS_STR = process.env.ALLOWED_ORIGINS || ''; // 获取白名单字符串
-    // 将逗号分隔的字符串转为数组，并去除多余空格
-    const ALLOWED_ORIGINS = ALLOWED_ORIGINS_STR.split(',').map(o => o.trim());
-
-    // 2. 处理 CORS (使用环境变量中的白名单)
-    const origin = req.headers.origin;
-    
-    if (origin && ALLOWED_ORIGINS.includes(origin)) {
-        res.setHeader('Access-Control-Allow-Origin', origin);
-    }
-    
+    // --- 1. 简化的 CORS 设置 ---
+    // 不再校验域名，直接允许所有来源 (Access-Control-Allow-Origin: *)
+    // 安全性完全由下方的 API_KEY 负责
+    res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
@@ -22,19 +13,19 @@ export default async function handler(req, res) {
         return res.status(200).end();
     }
 
-    // 3. 获取 URL 参数 (包括 key)
+    // --- 2. 获取参数与密码 ---
     const { term, region = 'cn', limit = 18, key } = req.query;
+    const API_KEY = process.env.API_KEY; // 从 Vercel 环境变量获取密码
 
-    // 4. 【安全检查】验证 API 密码
-    // 如果在 Vercel 后台设置了 API_KEY，就强制检查
+    // --- 3. 【核心安全检查】验证 API 密码 ---
+    // 只有当 URL 里的 key 等于环境变量里的 API_KEY 时才放行
     if (API_KEY) {
         if (!key || key !== API_KEY) {
-            // 密码不对或没传密码，直接拒绝
             return res.status(401).json({ error: 'Unauthorized: 访问密码错误或缺失' });
         }
     }
 
-    // --- 正常的 Apple 搜索逻辑 ---
+    // --- 4. 正常的 Apple 搜索逻辑 ---
     if (!term) {
         return res.status(400).json({ error: '请输入搜索关键词' });
     }
@@ -48,6 +39,7 @@ export default async function handler(req, res) {
     try {
         const response = await fetch(appleUrl.toString(), {
             headers: {
+                // 伪装成 macOS Safari，防止 Apple 返回 403
                 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.6 Safari/605.1.15'
             }
         });
@@ -58,6 +50,7 @@ export default async function handler(req, res) {
 
         const data = await response.json();
 
+        // 数据瘦身处理
         const cleanResults = (data.results || []).map(app => ({
             trackId: app.trackId,
             trackName: app.trackName,
