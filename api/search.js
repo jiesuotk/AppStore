@@ -4,7 +4,7 @@ export default async function handler(req, res) {
     // 1. 设置允许访问的域名白名单 (CORS)
     const ALLOWED_ORIGINS = [
         'https://icon.guankan.tk', // 您的网站
-        'http://ifeng.app'      // 本地调试用
+        'https://ifeng.app'      // 本地调试用
     ];
 
     const origin = req.headers.origin;
