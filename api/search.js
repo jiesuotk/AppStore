@@ -51,24 +51,18 @@ export default async function handler(req, res) {
         const data = await response.json();
 
         // 数据瘦身处理
-        const cleanResults = (data.results || []).map(app => {
-            
-            return {
-                trackId: app.trackId,
-                trackName: app.trackName,
-                // --- 【核心修改：直接返回2个尺寸的 URL】 ---
-                artworkUrl100: app.artworkUrl100,
-                artworkUrl512: app.artworkUrl512,
-                // ------------------------------------------
-                bundleId: app.bundleId,
-                version: app.version,
-                fileSizeBytes: app.fileSizeBytes,
-                currentVersionReleaseDate: app.currentVersionReleaseDate,
-                formattedPrice: app.formattedPrice,
-                trackViewUrl: app.trackViewUrl,
-                price: app.price
-            };
-        });
+        const cleanResults = (data.results || []).map(app => ({
+            trackId: app.trackId,
+            trackName: app.trackName,
+            artworkUrl512: app.artworkUrl512 || app.artworkUrl100,
+            bundleId: app.bundleId,
+            version: app.version,
+            fileSizeBytes: app.fileSizeBytes,
+            currentVersionReleaseDate: app.currentVersionReleaseDate,
+            formattedPrice: app.formattedPrice,
+            trackViewUrl: app.trackViewUrl,
+            price: app.price
+        }));
 
         return res.status(200).json({
             resultCount: data.resultCount,
